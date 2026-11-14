@@ -1,12 +1,1278 @@
 <!DOCTYPE html>
-<html>
+<html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Website của Sơn</title>
-</head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedQuiz Clinical - Trắc Nghiệm Lâm Sàng & Mở Khóa Kiến Thức</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter & Plus Jakarta Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- PDF.js (Mozilla) for parsing PDF files client-side -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <!-- Mammoth.js for parsing Word (.docx) files client-side -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
 
-<body>
-    <h1>Xin chào!</h1>
-    <p>Đây là website đầu tiên của tôi trên GitHub.</p>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Plus Jakarta Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        medical: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            200: '#bae6fd',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#0c4a6e',
+                        },
+                        tealmed: {
+                            50: '#f0fdfa',
+                            100: '#ccfbf1',
+                            500: '#14b8a6',
+                            600: '#0d9488',
+                            700: '#0f766e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom animations for unlocking knowledge cards */
+        @keyframes unlockReveal {
+            0% {
+                opacity: 0;
+                transform: translateY(12px) scale(0.98);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+        .animate-unlock {
+            animation: unlockReveal 0.45s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes pulseBorder {
+            0%, 100% { border-color: rgba(245, 158, 11, 0.5); }
+            50% { border-color: rgba(245, 158, 11, 1); }
+        }
+        .animate-gate-pulse {
+            animation: pulseBorder 2s infinite;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col selection:bg-medical-200 selection:text-medical-900">
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+            <!-- Brand Logo -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-medical-700 to-tealmed-600 flex items-center justify-center text-white shadow-md shadow-medical-600/20">
+                    <i data-lucide="stethoscope" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h1 class="font-display font-bold text-lg text-slate-900 leading-tight flex items-center gap-2">
+                        MedQuiz <span class="text-medical-600">Clinical</span>
+                        <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-medical-50 text-medical-700 border border-medical-200">
+                            CBL Engine
+                        </span>
+                    </h1>
+                    <p class="text-xs text-slate-500 hidden sm:block">Học tập dựa trên ca lâm sàng & Mở khóa tri thức</p>
+                </div>
+            </div>
+
+            <!-- Stats & Actions -->
+            <div class="flex items-center gap-2 sm:gap-4">
+                <!-- Unlocked Knowledge Counter -->
+                <div class="flex items-center gap-2 bg-tealmed-50 border border-tealmed-200 px-3 py-1.5 rounded-xl">
+                    <i data-lucide="book-open-check" class="w-4 h-4 text-tealmed-600"></i>
+                    <span class="text-xs sm:text-sm font-semibold text-tealmed-800">
+                        Kiến thức mở khóa: <span id="unlocked-count" class="font-bold text-tealmed-700">0/3</span>
+                    </span>
+                </div>
+
+                <!-- Score Pill -->
+                <div class="hidden md:flex items-center gap-2 bg-slate-100 border border-slate-200 px-3 py-1.5 rounded-xl">
+                    <i data-lucide="award" class="w-4 h-4 text-amber-500"></i>
+                    <span class="text-sm font-semibold text-slate-700">
+                        Điểm: <span id="score-display" class="text-medical-700">0</span>
+                    </span>
+                </div>
+
+                <!-- Import PDF / Word Button -->
+                <button onclick="openUploadModal()" class="inline-flex items-center gap-2 bg-medical-700 hover:bg-medical-800 active:scale-[0.98] text-white text-xs sm:text-sm font-semibold px-3.5 py-2 rounded-xl shadow-sm transition-all cursor-pointer">
+                    <i data-lucide="file-up" class="w-4 h-4"></i>
+                    <span>Tải lên PDF / Word (.docx)</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Case Progress Bar -->
+        <div class="w-full bg-slate-100 h-1.5">
+            <div id="case-progress-bar" class="bg-gradient-to-r from-medical-600 to-tealmed-500 h-1.5 transition-all duration-500" style="width: 33.33%"></div>
+        </div>
+    </header>
+
+    <!-- Main Content Workspace (2 Columns) -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        
+        <!-- Case Header Banner -->
+        <div class="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 mb-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div class="flex items-start gap-3.5">
+                <div class="w-11 h-11 rounded-xl bg-medical-50 border border-medical-100 flex items-center justify-center text-medical-700 shrink-0 mt-0.5">
+                    <i data-lucide="clipboard-pulse" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <div class="flex flex-wrap items-center gap-2 mb-1">
+                        <span id="case-category-badge" class="px-2.5 py-0.5 rounded-md text-xs font-semibold bg-medical-100 text-medical-800">
+                            Tai Mũi Họng • Truyền Nhiễm
+                        </span>
+                        <span id="case-source-badge" class="px-2.5 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-600">
+                            Case mẫu chuẩn IDSA
+                        </span>
+                    </div>
+                    <h2 id="case-title" class="font-display font-bold text-lg sm:text-xl text-slate-900">
+                        Ca lâm sàng: Viêm mũi xoang cấp tính (Acute Rhinosinusitis)
+                    </h2>
+                </div>
+            </div>
+
+            <!-- Question Stepper Navigation -->
+            <div class="flex items-center gap-2 self-end md:self-center">
+                <div id="step-pills" class="flex items-center gap-1.5">
+                    <!-- Step pills injected dynamically -->
+                </div>
+                <button onclick="resetCurrentCase()" title="Làm lại ca bệnh này" class="p-2 text-slate-500 hover:text-medical-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- 2-Column Interactive Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            <!-- LEFT COLUMN: Clinical Vignette & Main Question (7 cols on lg) -->
+            <section class="lg:col-span-7 space-y-5">
+                
+                <!-- Clinical Vignette / Scenario Card -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div class="bg-gradient-to-r from-medical-900 to-medical-800 px-5 py-3 flex items-center justify-between text-white">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="user-check" class="w-4 h-4 text-medical-200"></i>
+                            <span class="text-xs font-bold uppercase tracking-wider text-medical-100">Bệnh án & Diễn biến lâm sàng</span>
+                        </div>
+                        <span id="question-counter-label" class="text-xs font-medium bg-white/15 px-2.5 py-0.5 rounded-full">
+                            Câu hỏi 1 / 3
+                        </span>
+                    </div>
+                    <div class="p-5">
+                        <p id="clinical-vignette" class="text-slate-700 text-sm sm:text-base leading-relaxed">
+                            <!-- Vignette content loaded dynamically -->
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Main Multiple Choice Question Card -->
+                <div class="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-sm">
+                    <div class="flex items-start justify-between gap-3 mb-4">
+                        <h3 id="main-question-text" class="font-display font-bold text-base sm:text-lg text-slate-900 leading-snug">
+                            <!-- Question text loaded dynamically -->
+                        </h3>
+                    </div>
+
+                    <!-- Answer Options Container -->
+                    <div id="main-options-container" class="space-y-3">
+                        <!-- Options injected dynamically -->
+                    </div>
+
+                    <!-- Feedback Banner (Shown after answering main question) -->
+                    <div id="main-feedback-box" class="hidden mt-5 rounded-xl p-4 border transition-all">
+                        <!-- Feedback injected dynamically -->
+                    </div>
+
+                    <!-- Bottom Navigation Controls -->
+                    <div class="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                        <button id="btn-prev-q" onclick="navigateQuestion(-1)" class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-40 disabled:pointer-events-none transition-colors cursor-pointer">
+                            <i data-lucide="chevron-left" class="w-4 h-4"></i>
+                            Câu trước
+                        </button>
+
+                        <button id="btn-next-q" onclick="navigateQuestion(1)" class="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl text-sm font-semibold bg-medical-600 hover:bg-medical-700 text-white shadow-sm disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer">
+                            <span>Câu tiếp theo</span>
+                            <i data-lucide="chevron-right" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- RIGHT COLUMN: Knowledge Card / Mini-Quiz Gate (5 cols on lg) -->
+            <aside class="lg:col-span-5 lg:sticky lg:top-24">
+                <div id="knowledge-panel-container" class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all duration-300">
+                    <!-- Dynamic content: Locked State, Mini-Quiz Gate State, or Unlocked Knowledge State -->
+                </div>
+            </aside>
+
+        </div>
+    </main>
+
+    <!-- Upload PDF / Word Modal -->
+    <div id="upload-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-hidden my-auto animate-unlock">
+            <!-- Modal Header -->
+            <div class="bg-gradient-to-r from-medical-800 to-tealmed-700 px-6 py-4 flex items-center justify-between text-white">
+                <div class="flex items-center gap-2.5">
+                    <i data-lucide="sparkles" class="w-5 h-5 text-tealmed-200"></i>
+                    <h3 class="font-display font-bold text-lg">Tạo Bộ Trắc Nghiệm Tự Động Từ Tài Liệu</h3>
+                </div>
+                <button onclick="closeUploadModal()" class="p-1.5 rounded-lg hover:bg-white/15 text-white/80 hover:text-white transition-colors cursor-pointer">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-6 space-y-5">
+                <!-- Tabs: File Upload vs Paste Text -->
+                <div class="flex bg-slate-100 p-1 rounded-xl">
+                    <button id="tab-file-btn" onclick="switchModalTab('file')" class="flex-1 py-2 px-3 rounded-lg text-sm font-semibold bg-white text-medical-800 shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2">
+                        <i data-lucide="file-text" class="w-4 h-4"></i>
+                        Tải lên PDF / Word (.docx)
+                    </button>
+                    <button id="tab-text-btn" onclick="switchModalTab('text')" class="flex-1 py-2 px-3 rounded-lg text-sm font-semibold text-slate-600 hover:text-slate-900 transition-all cursor-pointer flex items-center justify-center gap-2">
+                        <i data-lucide="clipboard-type" class="w-4 h-4"></i>
+                        Dán văn bản y khoa
+                    </button>
+                </div>
+
+                <!-- Tab 1: Drag & Drop File Zone -->
+                <div id="modal-tab-file" class="space-y-4">
+                    <div id="drop-zone" class="border-2 border-dashed border-medical-300 hover:border-medical-500 bg-medical-50/50 rounded-2xl p-8 text-center transition-all cursor-pointer group">
+                        <input type="file" id="file-input" accept=".pdf,.docx,.txt" class="hidden" onchange="handleFileSelect(event)">
+                        <div class="w-14 h-14 rounded-2xl bg-white shadow-sm border border-medical-100 flex items-center justify-center mx-auto mb-3 text-medical-600 group-hover:scale-105 transition-transform">
+                            <i data-lucide="upload-cloud" class="w-7 h-7"></i>
+                        </div>
+                        <p class="font-semibold text-slate-800 text-base mb-1">
+                            Kéo thả file PDF hoặc Word (.docx) vào đây
+                        </p>
+                        <p class="text-xs text-slate-500 mb-4">
+                            Hỗ trợ giáo trình y khoa, bài giảng, phác đồ điều trị hoặc ngân hàng câu hỏi trắc nghiệm
+                        </p>
+                        <button type="button" onclick="document.getElementById('file-input').click()" class="px-4 py-2 bg-white border border-slate-300 hover:border-medical-500 text-slate-700 hover:text-medical-700 rounded-xl text-sm font-semibold shadow-sm transition-all cursor-pointer">
+                            Chọn tệp từ máy tính
+                        </button>
+                    </div>
+
+                    <!-- Quick Sample Test File Loader -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div class="flex items-center gap-2.5">
+                            <i data-lucide="flask-conical" class="w-5 h-5 text-tealmed-600 shrink-0"></i>
+                            <div class="text-xs text-slate-600">
+                                <span class="font-semibold text-slate-800">Chưa có sẵn file trên máy?</span> Thử nạp ngay tài liệu mẫu (Viêm phổi cộng đồng - CAP) để kiểm tra bộ phân tích.
+                            </div>
+                        </div>
+                        <button type="button" onclick="loadSampleDocumentText()" class="shrink-0 px-3 py-1.5 bg-tealmed-600 hover:bg-tealmed-700 text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer">
+                            Nạp văn bản mẫu
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tab 2: Direct Text Paste -->
+                <div id="modal-tab-text" class="hidden space-y-3">
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Nội dung tài liệu y khoa hoặc danh sách câu hỏi A, B, C, D:
+                    </label>
+                    <textarea id="raw-medical-text" rows="7" class="w-full rounded-xl border border-slate-300 focus:border-medical-500 focus:ring-2 focus:ring-medical-200 p-3.5 text-sm text-slate-800 leading-relaxed" placeholder="Dán đoạn văn bản bài giảng y khoa (ví dụ: tiêu chuẩn chẩn đoán, điều trị, biến chứng...) hoặc dán sẵn bộ câu hỏi trắc nghiệm A, B, C, D vào đây..."></textarea>
+                    <div class="flex justify-end">
+                        <button type="button" onclick="processTextToQuiz()" class="inline-flex items-center gap-2 px-5 py-2.5 bg-medical-700 hover:bg-medical-800 text-white text-sm font-semibold rounded-xl shadow-sm transition-all cursor-pointer">
+                            <i data-lucide="cpu" class="w-4 h-4"></i>
+                            Phân tích & Tạo Quiz Ngay
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Parsing Progress State -->
+                <div id="parsing-status-box" class="hidden bg-medical-50 border border-medical-200 rounded-xl p-4">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div class="w-5 h-5 border-2 border-medical-600 border-t-transparent rounded-full animate-spin"></div>
+                        <span id="parsing-status-text" class="text-sm font-semibold text-medical-900">Đang trích xuất văn bản từ tài liệu...</span>
+                    </div>
+                    <div class="w-full bg-medical-200/60 h-2 rounded-full overflow-hidden">
+                        <div id="parsing-progress-bar" class="bg-medical-600 h-2 transition-all duration-300" style="width: 25%"></div>
+                    </div>
+                </div>
+
+                <!-- Error / Notification Alert -->
+                <div id="modal-alert-box" class="hidden rounded-xl p-3.5 text-sm border"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast-notification" class="fixed bottom-5 right-5 z-50 transform translate-y-20 opacity-0 transition-all duration-300 pointer-events-none">
+        <div class="bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center gap-3 text-sm font-medium">
+            <i data-lucide="check-circle-2" class="w-5 h-5 text-tealmed-400"></i>
+            <span id="toast-message">Thông báo</span>
+        </div>
+    </div>
+
+    <script>
+        // Configure PDF.js worker
+        if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        // =========================================================================
+        // 1. DEFAULT CLINICAL CASE DATA: ACUTE RHINOSINUSITIS (VIÊM XOANG CẤP)
+        // =========================================================================
+        const DEFAULT_ACUTE_SINUSITIS_CASE = {
+            id: 'case-acute-sinusitis',
+            title: 'Ca lâm sàng: Viêm mũi xoang cấp tính (Acute Rhinosinusitis)',
+            category: 'Tai Mũi Họng • Truyền Nhiễm',
+            source: 'Case mẫu chuẩn IDSA / EPOS 2020',
+            questions: [
+                {
+                    id: 'q1',
+                    vignette: 'Bệnh nhân nam, 32 tuổi, đến khám vì đau nhức nặng vùng má hai bên và trán kèm nghẹt mũi, chảy dịch mũi vàng đục. Triệu chứng khởi phát cách đây 12 ngày sau một đợt cảm cúm thông thường. Bệnh nhân khai rằng vào ngày thứ 6 bệnh có dấu hiệu thuyên giảm nhẹ, nhưng từ ngày thứ 8 đến nay đột ngột sốt trở lại 38.6°C, đau nhức mặt tăng lên khi cúi đầu về phía trước và chảy mũi mủ đặc hơn. Khám nội soi mũi thấy niêm mạc phù nề, nhiều dịch mủ nhầy chảy ra từ khe mũi giữa.',
+                    question: 'Dựa trên diễn biến lâm sàng của bệnh nhân, chẩn đoán nào sau đây là phù hợp nhất ở thời điểm hiện tại?',
+                    options: [
+                        { id: 'A', text: 'Viêm mũi xoang cấp do virus (AVRS) đang trong giai đoạn hồi phục tự nhiên' },
+                        { id: 'B', text: 'Viêm mũi xoang cấp nhiễm khuẩn (ABRS) biểu hiện qua hiện tượng "bệnh nặng lên hai pha" (Double sickening)' },
+                        { id: 'C', text: 'Viêm mũi dị ứng theo mùa bội nhiễm nấm xâm lấn' },
+                        { id: 'D', text: 'Viêm xoang mạn tính có polyp mũi đợt cấp' }
+                    ],
+                    correctId: 'B',
+                    mainExplanation: 'Bệnh nhân có triệu chứng kéo dài > 10 ngày không cải thiện VÀ xuất hiện dấu hiệu "Double sickening" (bệnh nặng lên sau khi đã thuyên giảm ban đầu) — đây là tiêu chuẩn vàng lâm sàng phân biệt viêm xoang cấp do vi khuẩn (ABRS) với nhiễm virus thông thường.',
+                    // Mini-quiz shown ONLY if the user answers the main question INCORRECTLY
+                    miniQuiz: {
+                        prompt: 'Để mở khóa Thẻ Kiến Thức Chẩn Đoán, hãy trả lời câu hỏi củng cố nền tảng sau:',
+                        question: 'Theo hướng dẫn của Hiệp hội Bệnh truyền nhiễm Hoa Kỳ (IDSA), mốc thời gian nào sau đây gợi ý viêm mũi xoang cấp do vi khuẩn khi triệu chứng không có dấu hiệu cải thiện?',
+                        options: [
+                            { id: 'm1', text: 'Triệu chứng kéo dài ≥ 3 ngày' },
+                            { id: 'm2', text: 'Triệu chứng kéo dài ≥ 10 ngày mà không có dấu hiệu thuyên giảm' },
+                            { id: 'm3', text: 'Triệu chứng kéo dài trên 12 tuần liên tục' }
+                        ],
+                        correctId: 'm2',
+                        hint: 'Gợi ý: Viêm xoang do virus thường đạt đỉnh ở ngày 3-5 và giảm dần sau ngày thứ 7-10.'
+                    },
+                    // Unlocked Knowledge Card Content
+                    knowledgeCard: {
+                        badge: 'Chẩn đoán lâm sàng',
+                        title: 'Phân biệt Viêm xoang cấp do Virus vs. Vi khuẩn (IDSA)',
+                        summary: 'Khoảng 90-98% các trường hợp viêm mũi xoang cấp ban đầu là do virus (Rhinovirus, Influenza, Parainfluenza). Chỉ khoảng 0.5 - 2% tiến triển thành bội nhiễm vi khuẩn (S. pneumoniae, H. influenzae, M. catarrhalis).',
+                        pearls: [
+                            'Tiêu chuẩn 1 (Kéo dài): Triệu chứng viêm mũi xoang cấp kéo dài ≥ 10 ngày không cải thiện.',
+                            'Tiêu chuẩn 2 (Nặng ngay từ đầu): Sốt cao ≥ 39°C kèm chảy mũi mủ hoặc đau nhức mặt dữ dội liên tục trong ≥ 3-4 ngày đầu.',
+                            'Tiêu chuẩn 3 (Double Sickening): Triệu chứng nặng lên trở lại (sốt mới, đau đầu, tăng tiết dịch mũi) sau 5-6 ngày nhiễm virus vốn đã bắt đầu thuyên giảm.',
+                            'Lưu ý: X-quang Blondeau/Waters hoặc CT scan không được khuyến cáo thường quy trong viêm xoang cấp chưa biến chứng.'
+                        ]
+                    }
+                },
+                {
+                    id: 'q2',
+                    vignette: 'Sau khi xác định chẩn đoán Viêm mũi xoang cấp nhiễm khuẩn (ABRS) không biến chứng ở bệnh nhân nam 32 tuổi này. Khai thác tiền sử ghi nhận bệnh nhân hoàn toàn khỏe mạnh, không dị ứng thuốc, chưa từng sử dụng kháng sinh nào trong vòng 3 tháng gần đây và không sống ở vùng có tỷ lệ phế cầu kháng penicillin cao.',
+                    question: 'Phác đồ kháng sinh kinh nghiệm đầu tay (First-line) nào sau đây được IDSA khuyến cáo ưu tiên lựa chọn cho bệnh nhân này?',
+                    options: [
+                        { id: 'A', text: 'Azithromycin 500 mg uống ngày 1, sau đó 250 mg/ngày trong 4 ngày' },
+                        { id: 'B', text: 'Amoxicillin-clavulanate 875/125 mg uống mỗi 12 giờ trong 5–7 ngày' },
+                        { id: 'C', text: 'Levofloxacin 750 mg uống mỗi 24 giờ trong 10 ngày' },
+                        { id: 'D', text: 'Trimethoprim-sulfamethoxazole (TMP-SMX) uống mỗi 12 giờ trong 7 ngày' }
+                    ],
+                    correctId: 'B',
+                    mainExplanation: 'Amoxicillin-clavulanate (500/125 mg x 3 lần/ngày hoặc 875/125 mg x 2 lần/ngày trong 5–7 ngày) là lựa chọn đầu tay nhờ bao phủ tốt cả S. pneumoniae và các chủng H. influenzae, M. catarrhalis tiết men beta-lactamase.',
+                    miniQuiz: {
+                        prompt: 'Bạn đã chọn chưa chính xác! Hoàn thành câu hỏi nền tảng dưới đây để mở khóa Phác đồ điều trị:',
+                        question: 'Vì sao nhóm Macrolide (Azithromycin) và TMP-SMX KHÔNG còn được khuyến cáo làm kháng sinh đầu tay điều trị viêm xoang cấp nhiễm khuẩn?',
+                        options: [
+                            { id: 'm1', text: 'Do thuốc không thấm được vào niêm mạc xoang hàm' },
+                            { id: 'm2', text: 'Do tỷ lệ đề kháng của Streptococcus pneumoniae và H. influenzae rất cao (>30-40%)' },
+                            { id: 'm3', text: 'Do gây suy thận cấp ở bệnh nhân trẻ tuổi' }
+                        ],
+                        correctId: 'm2',
+                        hint: 'Gợi ý: Liên quan đến tình trạng kháng kháng sinh của phế cầu khuẩn (S. pneumoniae) hiện nay.'
+                    },
+                    knowledgeCard: {
+                        badge: 'Phác đồ điều trị IDSA',
+                        title: 'Lựa chọn Kháng sinh & Điều trị hỗ trợ trong ABRS',
+                        summary: 'Mục tiêu điều trị ABRS là tiệt trừ vi khuẩn gây bệnh, rút ngắn thời gian triệu chứng và ngăn ngừa biến chứng ổ mắt/nội sọ.',
+                        pearls: [
+                            'Đầu tay chuẩn: Amoxicillin-clavulanate 875/125 mg x 2 lần/ngày (hoặc 500/125 mg x 3 lần/ngày) trong 5–7 ngày ở người lớn.',
+                            'Trường hợp dị ứng Penicillin: Doxycycline (100 mg x 2 lần/ngày) hoặc Fluoroquinolone hô hấp (Levofloxacin, Moxifloxacin - chỉ dùng khi không có lựa chọn thay thế).',
+                            'Tránh dùng Macrolide (Azithromycin/Clarithromycin) và TMP-SMX do tỷ lệ kháng thuốc cao.',
+                            'Điều trị hỗ trợ: Rửa mũi bằng nước muối sinh lý, Corticoid xịt mũi tại chỗ (giảm phù nề khe mũi giữa). Thuốc co mạch tại chỗ (Oxymetazoline) không dùng quá 3–5 ngày để tránh viêm mũi do thuốc (Rhinitis medicamentosa).'
+                        ]
+                    }
+                },
+                {
+                    id: 'q3',
+                    vignette: 'Bệnh nhân được kê đơn điều trị ngoại trú và dặn dò theo dõi sát tại nhà. Tuy nhiên, 48 giờ sau, người nhà đưa bệnh nhân quay lại khoa Cấp cứu vì xuất hiện sưng nề đỏ mi mắt phải lan rộng, đau nhức hốc mắt dữ dội khi liếc mắt, nhìn đôi (song thị) và giảm thị lực mắt phải.',
+                    question: 'Xử trí khẩn cấp và đánh giá lâm sàng nào sau đây là quan trọng nhất đối với bệnh nhân lúc này?',
+                    options: [
+                        { id: 'A', text: 'Đổi sang kháng sinh đường uống thế hệ mới hơn và hẹn tái khám sau 48 giờ' },
+                        { id: 'B', text: 'Nghi ngờ biến chứng viêm tấy/áp-xe ổ mắt (sau vách ngăn); nhập viện ngay, chụp CT xoang-hốc mắt có cản quang và dùng kháng sinh tĩnh mạch' },
+                        { id: 'C', text: 'Nhỏ thuốc kháng sinh tại chỗ vào mắt phải và chườm ấm giảm sưng' },
+                        { id: 'D', text: 'Chọc rửa xoang hàm ngay tại phòng khám ngoại trú mà không cần chẩn đoán hình ảnh' }
+                    ],
+                    correctId: 'B',
+                    mainExplanation: 'Hạn chế vận nhãn, đau khi cử động nhãn cầu, nhìn đôi và giảm thị lực là các dấu hiệu báo động đỏ của biến chứng ổ mắt sau vách ngăn (Post-septal / Orbital cellulitis hoặc áp-xe dưới màng xương) — một cấp cứu y khoa đe dọa thị lực và tính mạng.',
+                    miniQuiz: {
+                        prompt: 'Cẩn trọng với các dấu hiệu báo động đỏ! Trả lời câu hỏi sau để mở khóa Thẻ Kiến Thức Biến Chứng:',
+                        question: 'Dấu hiệu lâm sàng nào giúp phân biệt Viêm tổ chức hốc mắt sau vách ngăn (Orbital cellulitis) với Viêm tổ chức trước vách ngăn (Preseptal cellulitis)?',
+                        options: [
+                            { id: 'm1', text: 'Chỉ có sưng đỏ da mi mắt đơn thuần' },
+                            { id: 'm2', text: 'Lồi mắt (proptosis), đau khi vận nhãn, hạn chế vận động nhãn cầu và giảm thị lực' },
+                            { id: 'm3', text: 'Ngứa mắt và chảy nước mắt trong' }
+                        ],
+                        correctId: 'm2',
+                        hint: 'Gợi ý: Viêm sau vách ngăn ảnh hưởng trực tiếp đến các cơ vận nhãn và thần kinh thị giác bên trong ổ mắt.'
+                    },
+                    knowledgeCard: {
+                        badge: 'Cấp cứu Tai Mũi Họng',
+                        title: 'Dấu hiệu "Cờ Đỏ" & Biến chứng của Viêm xoang cấp',
+                        summary: 'Do sự liên quan giải phẫu mật thiết giữa xoang sàng (qua xương giấy mỏng), xoang trán với ổ mắt và hố sọ trước, nhiễm trùng có thể lan trực tiếp hoặc qua hệ tĩnh mạch không van.',
+                        pearls: [
+                            'Phân loại Chandler biến chứng ổ mắt: (1) Viêm trước vách -> (2) Viêm tổ chức ổ mắt -> (3) Áp-xe dưới màng xương -> (4) Áp-xe ổ mắt -> (5) Huyết khối xoang hang.',
+                            'Dấu hiệu báo động đỏ (Red Flags): Sưng nề quanh ổ mắt, lồi mắt, nhìn đôi, giảm thị lực, đau đầu dữ dội, cứng gáy, rối loạn tri giác hoặc sưng nề vùng trán (U Pott - Pott’s puffy tumor).',
+                            'Hành động bắt buộc: Nhập viện cấp cứu, chụp CT-scan xoang & sọ não có tiêm thuốc cản quang (hoặc MRI), hội chẩn liên chuyên khoa Tai Mũi Họng – Mắt – Thần kinh, khởi trị kháng sinh tĩnh mạch phổ rộng (VD: Vancomycin + Ceftriaxone + Metronidazole).'
+                        ]
+                    }
+                }
+            ]
+        };
+
+        // =========================================================================
+        // 2. APPLICATION STATE MANAGEMENT
+        // =========================================================================
+        let currentCase = JSON.parse(JSON.stringify(DEFAULT_ACUTE_SINUSITIS_CASE));
+        let currentQuestionIndex = 0;
+        let score = 0;
+
+        // Track per-question state:
+        // status: 'unanswered' | 'gate_active' | 'unlocked_direct' | 'unlocked_via_gate'
+        // selectedMainId: string | null
+        // miniAttempts: number
+        // miniFeedback: string | null
+        let questionStates = [];
+
+        function initQuestionStates(caseObj) {
+            questionStates = caseObj.questions.map(() => ({
+                status: 'unanswered',
+                selectedMainId: null,
+                miniSelectedId: null,
+                miniFeedback: null
+            }));
+            currentQuestionIndex = 0;
+            score = 0;
+            updateTopMetrics();
+        }
+
+        // =========================================================================
+        // 3. UI RENDERING LOGIC
+        // =========================================================================
+        function renderAll() {
+            const qData = currentCase.questions[currentQuestionIndex];
+            const qState = questionStates[currentQuestionIndex];
+
+            // Update Case Metadata
+            document.getElementById('case-title').textContent = currentCase.title;
+            document.getElementById('case-category-badge').textContent = currentCase.category;
+            document.getElementById('case-source-badge').textContent = currentCase.source;
+            document.getElementById('question-counter-label').textContent = `Câu hỏi ${currentQuestionIndex + 1} / ${currentCase.questions.length}`;
+
+            // Render Stepper Pills
+            renderStepPills();
+
+            // Render Left Column: Vignette & Main Question
+            document.getElementById('clinical-vignette').textContent = qData.vignette;
+            document.getElementById('main-question-text').textContent = `${currentQuestionIndex + 1}. ${qData.question}`;
+
+            renderMainOptions(qData, qState);
+            renderMainFeedback(qData, qState);
+
+            // Render Navigation Buttons
+            document.getElementById('btn-prev-q').disabled = currentQuestionIndex === 0;
+            const nextBtn = document.getElementById('btn-next-q');
+            if (currentQuestionIndex === currentCase.questions.length - 1) {
+                nextBtn.innerHTML = `<span>Hoàn thành Ca bệnh</span><i data-lucide="check-circle" class="w-4 h-4"></i>`;
+            } else {
+                nextBtn.innerHTML = `<span>Câu tiếp theo</span><i data-lucide="chevron-right" class="w-4 h-4"></i>`;
+            }
+
+            // Render Right Column: Knowledge Card / Gate
+            renderKnowledgePanel(qData, qState);
+
+            // Update Progress Bar & Top Counters
+            updateTopMetrics();
+
+            // Re-initialize Lucide icons
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+        }
+
+        function renderStepPills() {
+            const container = document.getElementById('step-pills');
+            container.innerHTML = currentCase.questions.map((q, idx) => {
+                const st = questionStates[idx];
+                const isActive = idx === currentQuestionIndex;
+                const isUnlocked = st.status === 'unlocked_direct' || st.status === 'unlocked_via_gate';
+                const isGate = st.status === 'gate_active';
+
+                let baseClasses = "w-9 h-9 rounded-xl text-xs font-bold flex items-center justify-center transition-all cursor-pointer border ";
+                if (isActive) {
+                    baseClasses += "ring-2 ring-medical-500 ring-offset-1 ";
+                }
+
+                if (isUnlocked) {
+                    baseClasses += "bg-tealmed-600 text-white border-tealmed-600";
+                } else if (isGate) {
+                    baseClasses += "bg-amber-100 text-amber-800 border-amber-400";
+                } else if (isActive) {
+                    baseClasses += "bg-medical-700 text-white border-medical-700";
+                } else {
+                    baseClasses += "bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200";
+                }
+
+                return `<button onclick="jumpToQuestion(${idx})" class="${baseClasses}" title="Câu ${idx + 1}">
+                    ${isUnlocked ? '<i data-lucide="check" class="w-4 h-4"></i>' : (idx + 1)}
+                </button>`;
+            }).join('');
+        }
+
+        function renderMainOptions(qData, qState) {
+            const container = document.getElementById('main-options-container');
+            const isLocked = qState.status !== 'unanswered'; // Locked immediately after first choice (correct OR incorrect)
+
+            container.innerHTML = qData.options.map(opt => {
+                const isSelected = qState.selectedMainId === opt.id;
+                const isCorrect = opt.id === qData.correctId;
+
+                let cardStyle = "border-slate-200 bg-white hover:border-medical-400 hover:bg-medical-50/40 cursor-pointer";
+                let badgeStyle = "bg-slate-100 text-slate-700 border-slate-200";
+                let statusIcon = "";
+
+                if (isLocked) {
+                    cardStyle = "cursor-not-allowed ";
+                    if (isSelected && isCorrect) {
+                        // User picked the RIGHT answer
+                        cardStyle += "border-emerald-500 bg-emerald-50/80 ring-1 ring-emerald-500";
+                        badgeStyle = "bg-emerald-600 text-white border-emerald-600";
+                        statusIcon = `<i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-600 shrink-0"></i>`;
+                    } else if (isSelected && !isCorrect) {
+                        // User picked the WRONG answer -> locked in red
+                        cardStyle += "border-rose-500 bg-rose-50/80 ring-1 ring-rose-500";
+                        badgeStyle = "bg-rose-600 text-white border-rose-600";
+                        statusIcon = `<i data-lucide="x-circle" class="w-5 h-5 text-rose-600 shrink-0"></i>`;
+                    } else if (!isSelected && isCorrect && (qState.status === 'unlocked_via_gate')) {
+                        // Reveal correct option once they pass the mini-quiz gate
+                        cardStyle += "border-emerald-400 bg-emerald-50/40 opacity-90";
+                        badgeStyle = "bg-emerald-100 text-emerald-800 border-emerald-300";
+                        statusIcon = `<i data-lucide="check" class="w-5 h-5 text-emerald-600 shrink-0"></i>`;
+                    } else {
+                        cardStyle += "border-slate-200 bg-slate-50/70 opacity-60";
+                    }
+                }
+
+                return `
+                    <button
+                        type="button"
+                        ${isLocked ? 'disabled' : `onclick="handleMainAnswer('${opt.id}')"`}
+                        class="w-full text-left p-4 rounded-xl border transition-all flex items-center justify-between gap-3.5 ${cardStyle}">
+                        <div class="flex items-start gap-3.5">
+                            <span class="w-7 h-7 rounded-lg border text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 transition-colors ${badgeStyle}">
+                                ${opt.id}
+                            </span>
+                            <span class="text-sm sm:text-base font-medium text-slate-800 leading-snug">
+                                ${opt.text}
+                            </span>
+                        </div>
+                        ${statusIcon}
+                    </button>
+                `;
+            }).join('');
+        }
+
+        function renderMainFeedback(qData, qState) {
+            const box = document.getElementById('main-feedback-box');
+            if (qState.status === 'unanswered') {
+                box.classList.add('hidden');
+                return;
+            }
+
+            box.classList.remove('hidden');
+
+            if (qState.status === 'unlocked_direct') {
+                box.className = "mt-5 rounded-xl p-4 border border-emerald-200 bg-emerald-50 text-emerald-950 animate-unlock";
+                box.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                            <i data-lucide="sparkles" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-sm text-emerald-900 mb-1">Chính xác! Đã khóa đáp án & mở khóa Ô Kiến Thức bên cạnh</h4>
+                            <p class="text-xs sm:text-sm text-emerald-800 leading-relaxed">${qData.mainExplanation}</p>
+                        </div>
+                    </div>
+                `;
+            } else if (qState.status === 'gate_active') {
+                box.className = "mt-5 rounded-xl p-4 border border-rose-200 bg-rose-50 text-rose-950 animate-unlock";
+                box.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-rose-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                            <i data-lucide="lock" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-sm text-rose-900 mb-1">Chưa chính xác! Lựa chọn của bạn đã bị khóa</h4>
+                            <p class="text-xs sm:text-sm text-rose-800 leading-relaxed">
+                                Ô kiến thức bên phải đang được bảo vệ. Hãy hoàn thành <strong>Thử thách trắc nghiệm nhỏ</strong> ở cột bên phải để mở khóa kiến thức chuyên sâu cho câu này.
+                            </p>
+                        </div>
+                    </div>
+                `;
+            } else if (qState.status === 'unlocked_via_gate') {
+                box.className = "mt-5 rounded-xl p-4 border border-tealmed-200 bg-tealmed-50 text-tealmed-950 animate-unlock";
+                box.innerHTML = `
+                    <div class="flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-tealmed-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+                            <i data-lucide="unlock" class="w-4 h-4"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-sm text-tealmed-900 mb-1">Vượt qua thử thách! Đáp án đúng là ${qData.correctId}</h4>
+                            <p class="text-xs sm:text-sm text-tealmed-800 leading-relaxed">${qData.mainExplanation}</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function renderKnowledgePanel(qData, qState) {
+            const panel = document.getElementById('knowledge-panel-container');
+
+            // STATE 1: LOCKED (User hasn't answered main question yet)
+            if (qState.status === 'unanswered') {
+                panel.className = "bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden";
+                panel.innerHTML = `
+                    <div class="bg-slate-100 px-5 py-3.5 border-b border-slate-200 flex items-center justify-between">
+                        <div class="flex items-center gap-2 text-slate-600">
+                            <i data-lucide="lock" class="w-4 h-4"></i>
+                            <span class="text-xs font-bold uppercase tracking-wider">Ô Kiến Thức Lâm Sàng</span>
+                        </div>
+                        <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-600">Đang khóa</span>
+                    </div>
+                    <div class="p-8 text-center">
+                        <div class="w-16 h-16 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto mb-4 text-slate-400">
+                            <i data-lucide="shield-question" class="w-8 h-8"></i>
+                        </div>
+                        <h4 class="font-display font-bold text-base text-slate-800 mb-2">
+                            Thẻ Kiến Thức Chuyên Sâu Đang Khóa
+                        </h4>
+                        <p class="text-sm text-slate-500 leading-relaxed max-w-sm mx-auto">
+                            Hãy chọn đáp án cho câu hỏi lâm sàng ở cột bên trái. Trả lời đúng sẽ mở khóa ngay lập tức tóm tắt phác đồ & Clinical Pearls tại đây.
+                        </p>
+                    </div>
+                `;
+                return;
+            }
+
+            // STATE 2: MINI-QUIZ GATE (User answered main question INCORRECTLY)
+            if (qState.status === 'gate_active') {
+                const mq = qData.miniQuiz;
+                panel.className = "bg-white rounded-2xl border-2 border-amber-400 shadow-lg overflow-hidden animate-gate-pulse animate-unlock";
+                panel.innerHTML = `
+                    <div class="bg-gradient-to-r from-amber-500 to-orange-500 px-5 py-3.5 flex items-center justify-between text-white">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="key-round" class="w-4 h-4"></i>
+                            <span class="text-xs font-bold uppercase tracking-wider">Thử Thách Mở Khóa Kiến Thức</span>
+                        </div>
+                        <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-white/20">Mini-Quiz Gate</span>
+                    </div>
+                    <div class="p-5 sm:p-6">
+                        <div class="bg-amber-50 border border-amber-200 rounded-xl p-3.5 mb-4 flex items-start gap-2.5">
+                            <i data-lucide="alert-triangle" class="w-4 h-4 text-amber-600 shrink-0 mt-0.5"></i>
+                            <p class="text-xs text-amber-900 font-medium leading-relaxed">
+                                ${mq.prompt}
+                            </p>
+                        </div>
+
+                        <h4 class="font-display font-bold text-sm sm:text-base text-slate-900 mb-3.5 leading-snug">
+                            ${mq.question}
+                        </h4>
+
+                        <div class="space-y-2.5">
+                            ${mq.options.map((mOpt, i) => {
+                                const isWrongTry = qState.miniSelectedId === mOpt.id && mOpt.id !== mq.correctId;
+                                return `
+                                    <button
+                                        type="button"
+                                        onclick="handleMiniQuizAnswer('${mOpt.id}')"
+                                        class="w-full text-left p-3.5 rounded-xl border text-xs sm:text-sm font-medium transition-all flex items-center gap-3 cursor-pointer ${
+                                            isWrongTry
+                                            ? 'border-rose-400 bg-rose-50 text-rose-900'
+                                            : 'border-slate-200 hover:border-amber-500 hover:bg-amber-50/50 text-slate-800'
+                                        }">
+                                        <span class="w-6 h-6 rounded-md bg-slate-100 border border-slate-200 text-xs font-bold flex items-center justify-center shrink-0">
+                                            ${i + 1}
+                                        </span>
+                                        <span class="leading-snug">${mOpt.text}</span>
+                                    </button>
+                                `;
+                            }).join('')}
+                        </div>
+
+                        ${qState.miniFeedback ? `
+                            <div class="mt-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 leading-relaxed">
+                                <strong>Chưa đúng:</strong> ${qState.miniFeedback}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+                return;
+            }
+
+            // STATE 3: UNLOCKED KNOWLEDGE CARD (Either direct correct OR passed Mini-Quiz Gate)
+            const kc = qData.knowledgeCard;
+            const viaGate = qState.status === 'unlocked_via_gate';
+            panel.className = "bg-white rounded-2xl border-2 border-tealmed-500 shadow-md overflow-hidden animate-unlock";
+            panel.innerHTML = `
+                <div class="bg-gradient-to-r from-tealmed-700 to-medical-700 px-5 py-3.5 flex items-center justify-between text-white">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="book-open-check" class="w-4 h-4 text-tealmed-200"></i>
+                        <span class="text-xs font-bold uppercase tracking-wider">Ô Kiến Thức Đã Mở Khóa</span>
+                    </div>
+                    <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-white/20">
+                        ${viaGate ? 'Mở qua thử thách' : 'Mở trực tiếp'}
+                    </span>
+                </div>
+
+                <div class="p-5 sm:p-6 space-y-4">
+                    <div>
+                        <span class="inline-block px-2.5 py-0.5 rounded-md text-xs font-bold bg-tealmed-50 text-tealmed-700 border border-tealmed-200 mb-2">
+                            ${kc.badge}
+                        </span>
+                        <h4 class="font-display font-bold text-lg text-slate-900 leading-snug">
+                            ${kc.title}
+                        </h4>
+                    </div>
+
+                    <p class="text-sm text-slate-600 leading-relaxed bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+                        ${kc.summary}
+                    </p>
+
+                    <div>
+                        <h5 class="text-xs font-bold uppercase tracking-wider text-medical-800 mb-2.5 flex items-center gap-1.5">
+                            <i data-lucide="lightbulb" class="w-4 h-4 text-amber-500"></i>
+                            Điểm Cốt Lõi Lâm Sàng (Clinical Pearls)
+                        </h5>
+                        <ul class="space-y-2.5">
+                            ${kc.pearls.map(pearl => `
+                                <li class="flex items-start gap-2.5 text-xs sm:text-sm text-slate-700 leading-relaxed">
+                                    <span class="w-5 h-5 rounded-full bg-tealmed-100 text-tealmed-700 flex items-center justify-center shrink-0 mt-0.5">
+                                        <i data-lucide="check" class="w-3 h-3"></i>
+                                    </span>
+                                    <span>${pearl}</span>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    </div>
+                </div>
+            `;
+        }
+
+        // =========================================================================
+        // 4. INTERACTION HANDLERS (LOCKING & UNLOCKING LOGIC)
+        // =========================================================================
+        function handleMainAnswer(optionId) {
+            const qData = currentCase.questions[currentQuestionIndex];
+            const qState = questionStates[currentQuestionIndex];
+
+            // Enforce strict lock: if already answered, do not allow changing answer
+            if (qState.status !== 'unanswered') return;
+
+            qState.selectedMainId = optionId;
+
+            if (optionId === qData.correctId) {
+                // CORRECT ANSWER: Lock options & automatically unlock Knowledge Card
+                qState.status = 'unlocked_direct';
+                score += 100;
+                showToast('Chính xác! Đã tự động mở khóa Ô Kiến Thức.');
+            } else {
+                // INCORRECT ANSWER: Lock chosen option in red & activate Mini-Quiz Gate
+                qState.status = 'gate_active';
+                showToast('Chưa đúng! Hãy hoàn thành câu hỏi nhỏ bên phải để mở khóa kiến thức.');
+            }
+
+            renderAll();
+        }
+
+        function handleMiniQuizAnswer(miniOptionId) {
+            const qData = currentCase.questions[currentQuestionIndex];
+            const qState = questionStates[currentQuestionIndex];
+
+            if (qState.status !== 'gate_active') return;
+
+            qState.miniSelectedId = miniOptionId;
+
+            if (miniOptionId === qData.miniQuiz.correctId) {
+                // Passed the Mini-Quiz Gate -> Unlock full Knowledge Card!
+                qState.status = 'unlocked_via_gate';
+                qState.miniFeedback = null;
+                score += 50; // Partial credit for passing gate
+                showToast('Tuyệt vời! Ô Kiến Thức đầy đủ đã được mở khóa.');
+            } else {
+                // Wrong on mini-quiz -> Allow retry with hint
+                qState.miniFeedback = `${qData.miniQuiz.hint} Hãy thử chọn lại đáp án khác.`;
+            }
+
+            renderAll();
+        }
+
+        function navigateQuestion(delta) {
+            const newIdx = currentQuestionIndex + delta;
+            if (newIdx >= 0 && newIdx < currentCase.questions.length) {
+                currentQuestionIndex = newIdx;
+                renderAll();
+            } else if (newIdx === currentCase.questions.length) {
+                // Completed case summary toast
+                const unlockedTotal = questionStates.filter(s => s.status === 'unlocked_direct' || s.status === 'unlocked_via_gate').length;
+                showToast(`Hoàn thành ca bệnh! Bạn đã mở khóa ${unlockedTotal}/${currentCase.questions.length} thẻ kiến thức (${score} điểm).`);
+            }
+        }
+
+        function jumpToQuestion(idx) {
+            if (idx >= 0 && idx < currentCase.questions.length) {
+                currentQuestionIndex = idx;
+                renderAll();
+            }
+        }
+
+        function resetCurrentCase() {
+            initQuestionStates(currentCase);
+            renderAll();
+            showToast('Đã đặt lại trạng thái ca lâm sàng.');
+        }
+
+        function updateTopMetrics() {
+            const total = currentCase.questions.length;
+            const unlocked = questionStates.filter(s => s.status === 'unlocked_direct' || s.status === 'unlocked_via_gate').length;
+            document.getElementById('unlocked-count').textContent = `${unlocked}/${total}`;
+            document.getElementById('score-display').textContent = score;
+
+            const progressPct = ((currentQuestionIndex + 1) / total) * 100;
+            document.getElementById('case-progress-bar').style.width = `${progressPct}%`;
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast-notification');
+            document.getElementById('toast-message').textContent = msg;
+            toast.classList.remove('translate-y-20', 'opacity-0');
+            clearTimeout(window._toastTimer);
+            window._toastTimer = setTimeout(() => {
+                toast.classList.add('translate-y-20', 'opacity-0');
+            }, 3500);
+        }
+
+        // =========================================================================
+        // 5. PDF & WORD (.DOCX) EXTRACTION + SMART MEDICAL QUIZ GENERATOR
+        // =========================================================================
+        function openUploadModal() {
+            const modal = document.getElementById('upload-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            hideModalAlert();
+            document.getElementById('parsing-status-box').classList.add('hidden');
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function closeUploadModal() {
+            const modal = document.getElementById('upload-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function switchModalTab(tab) {
+            const fileTab = document.getElementById('modal-tab-file');
+            const textTab = document.getElementById('modal-tab-text');
+            const fileBtn = document.getElementById('tab-file-btn');
+            const textBtn = document.getElementById('tab-text-btn');
+
+            if (tab === 'file') {
+                fileTab.classList.remove('hidden');
+                textTab.classList.add('hidden');
+                fileBtn.className = "flex-1 py-2 px-3 rounded-lg text-sm font-semibold bg-white text-medical-800 shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2";
+                textBtn.className = "flex-1 py-2 px-3 rounded-lg text-sm font-semibold text-slate-600 hover:text-slate-900 transition-all cursor-pointer flex items-center justify-center gap-2";
+            } else {
+                fileTab.classList.add('hidden');
+                textTab.classList.remove('hidden');
+                textBtn.className = "flex-1 py-2 px-3 rounded-lg text-sm font-semibold bg-white text-medical-800 shadow-sm transition-all cursor-pointer flex items-center justify-center gap-2";
+                fileBtn.className = "flex-1 py-2 px-3 rounded-lg text-sm font-semibold text-slate-600 hover:text-slate-900 transition-all cursor-pointer flex items-center justify-center gap-2";
+            }
+        }
+
+        // Drag and drop listeners
+        const dropZone = document.getElementById('drop-zone');
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('border-medical-600', 'bg-medical-100/60');
+        });
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('border-medical-600', 'bg-medical-100/60');
+        });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-medical-600', 'bg-medical-100/60');
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                processUploadedFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                processUploadedFile(file);
+            }
+            event.target.value = ''; // reset input
+        }
+
+        function setParsingProgress(pct, text) {
+            const box = document.getElementById('parsing-status-box');
+            box.classList.remove('hidden');
+            document.getElementById('parsing-progress-bar').style.width = `${pct}%`;
+            document.getElementById('parsing-status-text').textContent = text;
+        }
+
+        function showModalAlert(msg, isError = true) {
+            const box = document.getElementById('modal-alert-box');
+            box.classList.remove('hidden');
+            box.className = isError
+                ? "rounded-xl p-3.5 text-sm border border-rose-200 bg-rose-50 text-rose-800"
+                : "rounded-xl p-3.5 text-sm border border-emerald-200 bg-emerald-50 text-emerald-800";
+            box.textContent = msg;
+        }
+
+        function hideModalAlert() {
+            document.getElementById('modal-alert-box').classList.add('hidden');
+        }
+
+        async function processUploadedFile(file) {
+            hideModalAlert();
+            const fileName = file.name;
+            const ext = fileName.split('.').pop().toLowerCase();
+
+            try {
+                let extractedText = '';
+
+                if (ext === 'pdf') {
+                    setParsingProgress(25, `Đang đọc file PDF "${fileName}" bằng PDF.js...`);
+                    extractedText = await extractTextFromPDF(file);
+                } else if (ext === 'docx') {
+                    setParsingProgress(25, `Đang đọc file Word "${fileName}" bằng Mammoth.js...`);
+                    extractedText = await extractTextFromDocx(file);
+                } else if (ext === 'txt') {
+                    setParsingProgress(30, `Đang đọc file văn bản "${fileName}"...`);
+                    extractedText = await file.text();
+                } else {
+                    showModalAlert('Định dạng không hỗ trợ. Vui lòng chọn file .pdf, .docx hoặc .txt.');
+                    return;
+                }
+
+                if (!extractedText || extractedText.trim().length < 40) {
+                    showModalAlert('Không trích xuất được đủ nội dung văn bản từ tệp (có thể tệp PDF là dạng ảnh scan chưa OCR). Hãy thử tệp khác hoặc dán văn bản trực tiếp.');
+                    document.getElementById('parsing-status-box').classList.add('hidden');
+                    return;
+                }
+
+                setParsingProgress(65, 'Đang phân tích cấu trúc y khoa & tạo câu hỏi + thẻ kiến thức...');
+                await new Promise(r => setTimeout(r, 450)); // smooth UX feedback
+
+                const generatedCase = generateCaseFromMedicalText(extractedText, fileName);
+                setParsingProgress(100, 'Hoàn tất! Đang nạp bộ câu hỏi vào giao diện...');
+                await new Promise(r => setTimeout(r, 300));
+
+                applyNewCase(generatedCase);
+                closeUploadModal();
+                showToast(`Đã tạo thành công ${generatedCase.questions.length} câu hỏi từ "${fileName}"!`);
+            } catch (err) {
+                console.error(err);
+                document.getElementById('parsing-status-box').classList.add('hidden');
+                showModalAlert(`Lỗi khi xử lý tệp: ${err.message || 'Không thể đọc cấu trúc tệp'}`);
+            }
+        }
+
+        async function extractTextFromPDF(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            let fullText = '';
+            const maxPages = Math.min(pdf.numPages, 15); // limit to first 15 pages for speed
+            for (let pageNum = 1; pageNum <= maxPages; pageNum++) {
+                const page = await pdf.getPage(pageNum);
+                const textContent = await page.getTextContent();
+                const pageStr = textContent.items.map(item => item.str).join(' ');
+                fullText += pageStr + '\n\n';
+            }
+            return fullText;
+        }
+
+        async function extractTextFromDocx(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await mammoth.extractRawText({ arrayBuffer: arrayBuffer });
+            return result.value;
+        }
+
+        async function processTextToQuiz() {
+            hideModalAlert();
+            const rawText = document.getElementById('raw-medical-text').value.trim();
+            if (rawText.length < 40) {
+                showModalAlert('Vui lòng nhập ít nhất 40 ký tự nội dung y khoa hoặc câu hỏi để hệ thống phân tích.');
+                return;
+            }
+            setParsingProgress(55, 'Đang phân tích nội dung y khoa...');
+            await new Promise(r => setTimeout(r, 350));
+            const generatedCase = generateCaseFromMedicalText(rawText, 'Văn bản y khoa nhập trực tiếp');
+            setParsingProgress(100, 'Hoàn tất!');
+            await new Promise(r => setTimeout(r, 250));
+            applyNewCase(generatedCase);
+            closeUploadModal();
+            showToast(`Đã tạo bộ trắc nghiệm gồm ${generatedCase.questions.length} câu hỏi!`);
+        }
+
+        function loadSampleDocumentText() {
+            switchModalTab('text');
+            document.getElementById('raw-medical-text').value = `BÀI GIẢNG: VIÊM PHỔI MẮC PHẢI CỘNG ĐỒNG (CAP) Ở NGƯỜI LỚN
+Viêm phổi mắc phải cộng đồng (CAP) là tình trạng nhiễm trùng nhu mô phổi xảy ra bên ngoài bệnh viện. Tác nhân vi khuẩn thường gặp nhất là Streptococcus pneumoniae, theo sau là Mycoplasma pneumoniae, Haemophilus influenzae và Chlamydophila pneumoniae.
+Chẩn đoán xác định CAP đòi hỏi sự hiện diện của tổn thương thâm nhiễm mới trên phim X-quang ngực thẳng kết hợp với ít nhất hai triệu chứng lâm sàng như sốt trên 38 độ C, ho khạc đờm mủ, khó thở hoặc nghe phổi có ran nổ khu trú.
+Thang điểm CURB-65 được sử dụng phổ biến để đánh giá mức độ nặng và quyết định nơi điều trị, bao gồm 5 tiêu chí: Lú lẫn mới xuất hiện (Confusion), Ure máu > 7 mmol/L, Nhịp thở ≥ 30 lần/phút, Huyết áp tâm thu < 90 mmHg hoặc tâm trương ≤ 60 mmHg, và Tuổi ≥ 65. Bệnh nhân có điểm CURB-65 từ 0 đến 1 điểm có nguy cơ tử vong thấp (<3%) và có thể điều trị ngoại trú.
+Về điều trị kháng sinh ngoại trú ở bệnh nhân khỏe mạnh không có bệnh đồng mắc và không dùng kháng sinh trong 3 tháng gần đây, Amoxicillin liều cao (1g x 3 lần/ngày) hoặc Doxycycline được khuyến cáo ưu tiên. Nếu bệnh nhân có bệnh đồng mắc như đái tháo đường, suy tim hoặc bệnh phổi mạn tính, cần phối hợp Beta-lactam (Amoxicillin-clavulanate) với Macrolide hoặc dùng đơn trị Fluoroquinolone hô hấp.`;
+            showModalAlert('Đã nạp sẵn văn bản bài giảng mẫu "Viêm phổi cộng đồng (CAP)". Nhấn "Phân tích & Tạo Quiz Ngay" để xem kết quả!', false);
+        }
+
+        function applyNewCase(newCase) {
+            currentCase = newCase;
+            initQuestionStates(currentCase);
+            renderAll();
+        }
+
+        // =========================================================================
+        // 6. SMART PARSER + AI HEURISTIC GENERATOR (MCQs OR PROSE -> CASE QUIZ)
+        // =========================================================================
+        function generateCaseFromMedicalText(rawText, sourceName) {
+            const cleanText = rawText.replace(/\r\n/g, '\n').replace(/\t/g, ' ').trim();
+
+            // MODE A: Check if the document already contains structured MCQs (A., B., C., D.)
+            const parsedMCQs = tryParseExistingMCQs(cleanText);
+            if (parsedMCQs.length >= 1) {
+                return {
+                    id: 'custom-mcq-' + Date.now(),
+                    title: `Bộ câu hỏi trích xuất: ${sourceName.replace(/\.[^/.]+$/, "")}`,
+                    category: 'Tài liệu tải lên • Ngân hàng MCQ',
+                    source: sourceName,
+                    questions: parsedMCQs
+                };
+            }
+
+            // MODE B: Synthesize clinical case questions, mini-quiz gates & knowledge cards from medical prose
+            return synthesizeQuestionsFromProse(cleanText, sourceName);
+        }
+
+        function tryParseExistingMCQs(text) {
+            // Match blocks containing Question + A. + B. + C. + D.
+            const mcqRegex = /(?:Câu\s*\d+[:.]?|\d+[.)])\s*([^\n]+(?:\n(?![A-D][.)]).+)*)\n+\s*A[.)]\s*([^\n]+)\n+\s*B[.)]\s*([^\n]+)\n+\s*C[.)]\s*([^\n]+)\n+\s*D[.)]\s*([^\n]+)(?:\n+\s*(?:Đáp án|Answer|Key)[:\s]*([A-D]))?/gi;
+            const results = [];
+            let match;
+
+            while ((match = mcqRegex.exec(text)) !== null && results.length < 8) {
+                const qText = match[1].trim();
+                const optA = match[2].trim();
+                const optB = match[3].trim();
+                const optC = match[4].trim();
+                const optD = match[5].trim();
+                const ansKey = (match[6] || 'A').toUpperCase();
+
+                const options = [
+                    { id: 'A', text: optA },
+                    { id: 'B', text: optB },
+                    { id: 'C', text: optC },
+                    { id: 'D', text: optD }
+                ];
+                const correctObj = options.find(o => o.id === ansKey) || options[0];
+
+                results.push({
+                    id: `parsed-q-${results.length + 1}`,
+                    vignette: `Tình huống trích xuất từ tài liệu "${qText.slice(0, 120)}${qText.length > 120 ? '...' : ''}". Hãy phân tích dữ kiện chuyên môn và lựa chọn phương án chính xác nhất.`,
+                    question: qText,
+                    options: options,
+                    correctId: correctObj.id,
+                    mainExplanation: `Đáp án chính xác theo tài liệu gốc là ${correctObj.id}: "${correctObj.text}".`,
+                    miniQuiz: {
+                        prompt: 'Bạn đã chọn sai ở câu hỏi chính. Hãy xác nhận lại nội dung cốt lõi dưới đây để mở khóa thẻ kiến thức:',
+                        question: `Nội dung nào sau đây phản ánh đúng mệnh đề chuẩn trong câu hỏi vừa rồi?`,
+                        options: [
+                            { id: 'm1', text: correctObj.text },
+                            { id: 'm2', text: options.find(o => o.id !== correctObj.id).text },
+                            { id: 'm3', text: 'Tất cả các phương án trên đều chống chỉ định tuyệt đối' }
+                        ],
+                        correctId: 'm1',
+                        hint: 'Gợi ý: Đối chiếu lại các phương án đã xuất hiện trong câu hỏi chính.'
+                    },
+                    knowledgeCard: {
+                        badge: 'Kiến thức trích xuất',
+                        title: `Tổng hợp kiến thức Câu ${results.length + 1}`,
+                        summary: qText,
+                        pearls: [
+                            `Phương án chuẩn xác: ${correctObj.text}.`,
+                            'Cần loại trừ kỹ các phương án gây nhiễu dựa trên cơ chế bệnh sinh và khuyến cáo hiện hành.',
+                            'Ghi nhớ mối liên hệ giữa triệu chứng lâm sàng, cận lâm sàng và chỉ định điều trị tương ứng.'
+                        ]
+                    }
+                });
+            }
+            return results;
+        }
+
+        function synthesizeQuestionsFromProse(text, sourceName) {
+            // Split prose into meaningful medical sentences
+            const sentences = text
+                .split(/(?<=[.!?])\s+/)
+                .map(s => s.replace(/\s+/g, ' ').trim())
+                .filter(s => s.length >= 45 && s.length <= 320);
+
+            // Detect medical topic keywords for realistic distractors & context
+            const firstLine = text.split('\n')[0].trim();
+            const docTitle = firstLine.length > 5 && firstLine.length < 90
+                ? firstLine
+                : sourceName.replace(/\.[^/.]+$/, "");
+
+            // Select up to 3 informative sentences (prioritizing sentences with numbers, thresholds, or clinical keywords)
+            const scoredSentences = sentences.map((s, idx) => {
+                let weight = 0;
+                if (/\d+/.test(s)) weight += 3;
+                if (/chẩn đoán|điều trị|kháng sinh|tiêu chuẩn|triệu chứng|biến chứng|khuyến cáo|tác nhân|thang điểm/i.test(s)) weight += 4;
+                return { text: s, weight, idx };
+            }).sort((a, b) => b.weight - a.weight);
+
+            const selected = scoredSentences.slice(0, Math.min(3, Math.max(1, scoredSentences.length)))
+                .sort((a, b) => a.idx - b.idx);
+
+            // Fallback if text had very long single block
+            if (selected.length === 0) {
+                selected.push({ text: text.slice(0, 220), idx: 0 });
+            }
+
+            const questions = selected.map((item, idx) => {
+                const fact = item.text;
+                // Build a realistic clinical question based on the extracted medical statement
+                const contextSnippet = sentences.slice(Math.max(0, item.idx - 1), Math.min(sentences.length, item.idx + 2)).join(' ');
+
+                // Generate plausible medical distractors by altering numbers or clinical logic
+                const distractor1 = createPlausibleDistractor(fact, 1);
+                const distractor2 = createPlausibleDistractor(fact, 2);
+                const distractor3 = "Không có giá trị trong thực hành lâm sàng và chống chỉ định áp dụng cho mọi nhóm bệnh nhân.";
+
+                const rawOptions = [
+                    { text: fact, isCorrect: true },
+                    { text: distractor1, isCorrect: false },
+                    { text: distractor2, isCorrect: false },
+                    { text: distractor3, isCorrect: false }
+                ];
+
+                // Deterministic shuffle based on index
+                const shift = idx % 3;
+                const rotated = rawOptions.slice(shift).concat(rawOptions.slice(0, shift));
+                const letters = ['A', 'B', 'C', 'D'];
+                let correctId = 'A';
+
+                const options = rotated.map((opt, i) => {
+                    if (opt.isCorrect) correctId = letters[i];
+                    return { id: letters[i], text: opt.text };
+                });
+
+                return {
+                    id: `auto-q-${idx + 1}`,
+                    vignette: `Trích đoạn tài liệu "${docTitle}": ${contextSnippet}`,
+                    question: `Dựa trên nội dung y khoa từ tài liệu, nhận định nào sau đây là CHÍNH XÁC nhất?`,
+                    options: options,
+                    correctId: correctId,
+                    mainExplanation: `Theo tài liệu đã tải lên: "${fact}"`,
+                    miniQuiz: {
+                        prompt: 'Bạn chưa chọn đúng ở câu hỏi chính. Hãy hoàn thành câu hỏi kiểm tra khái niệm dưới đây để mở khóa Thẻ Kiến Thức:',
+                        question: `Chủ đề chính được đề cập trong phần kiến thức này thuộc nhóm nội dung nào?`,
+                        options: [
+                            { id: 'm1', text: `Khuyến cáo chuẩn xác về ${docTitle}` },
+                            { id: 'm2', text: 'Phác đồ phẫu thuật tim hở cấp cứu' },
+                            { id: 'm3', text: 'Quy trình vô khuẩn dụng cụ nha khoa cơ bản' }
+                        ],
+                        correctId: 'm1',
+                        hint: `Gợi ý: Tập trung vào chủ đề chính của tài liệu "${docTitle}".`
+                    },
+                    knowledgeCard: {
+                        badge: `Kiến thức trọng tâm #${idx + 1}`,
+                        title: `Tóm tắt lâm sàng: ${docTitle}`,
+                        summary: fact,
+                        pearls: [
+                            `Điểm cốt lõi trích xuất: ${fact}`,
+                            'Luôn đối chiếu dữ kiện lâm sàng thực tế của bệnh nhân với các ngưỡng tiêu chuẩn được nêu trong tài liệu.',
+                            'Phân biệt rõ giữa các nhận định chuẩn xác và các bẫy thay đổi chỉ số/chỉ định điều trị.'
+                        ]
+                    }
+                };
+            });
+
+            return {
+                id: 'custom-prose-' + Date.now(),
+                title: `Case học tập: ${docTitle}`,
+                category: 'Tài liệu y khoa tùy chỉnh',
+                source: sourceName,
+                questions: questions
+            };
+        }
+
+        function createPlausibleDistractor(sentence, variant) {
+            // Slightly mutate numbers or clinical polarity to create realistic MCQ distractors
+            if (/\d+/.test(sentence) && variant === 1) {
+                return sentence.replace(/(\d+)/g, (match) => {
+                    const num = parseInt(match, 10);
+                    return num > 10 ? String(num + 15) : String(num + 2);
+                }) + ' (đã điều chỉnh ngưỡng).';
+            }
+            if (variant === 1) {
+                return sentence
+                    .replace(/thường gặp nhất/gi, 'hiếm gặp nhất (<1%)')
+                    .replace(/ưu tiên/gi, 'chống chỉ định tuyệt đối')
+                    .replace(/ngoại trú/gi, 'hồi sức tích cực (ICU)')
+                    .replace(/không/gi, 'luôn bắt buộc');
+            }
+            return `Chỉ áp dụng trong trường hợp bệnh nhân đã thất bại với tất cả các biện pháp can thiệp xâm lấn trước đó.`;
+        }
+
+        // =========================================================================
+        // 7. INITIALIZE APP ON WINDOW LOAD
+        // =========================================================================
+        window.onload = function () {
+            initQuestionStates(currentCase);
+            renderAll();
+        };
+    </script>
 </body>
 </html>
