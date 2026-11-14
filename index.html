@@ -3174,7 +3174,8 @@ Giải thích: Viêm xoang sàng trước cấp do vi khuẩn thường gặp sa
             }
         }
 
-        function saveParsedCardsToDeck() {
+        function saveParsedCardsToDeck()
+        saveDeckToFirebase(targetDeck);{
             if (parsedDraftCards.length === 0) return;
 
             const mode = document.querySelector('input[name="save-mode"]:checked').value;
@@ -3206,6 +3207,7 @@ Giải thích: Viêm xoang sàng trước cấp do vi khuẩn thường gặp sa
                 currentDeckId = newDeck.id;
                 newNameInput.value = '';
                 saveDecksToStorage();
+                saveDeckToFirebase(newDeck);
                 showToast(`Đã tạo bộ test mới "${newName}" gồm ${finalizedCards.length} câu!`, 'success');
             }
 
@@ -3643,7 +3645,28 @@ async function() {
  alert("Firebase OK!");
 
 }
+async function saveDeckToFirebase(deck) {
 
+    try {
+
+        await addDoc(
+            collection(db, "examsets"),
+            {
+                name: deck.name,
+                cases: deck.cases,
+                updatedAt: new Date().toISOString()
+            }
+        );
+
+        console.log("Đã lưu Firebase");
+
+    } catch(err) {
+
+        console.error(err);
+
+    }
+
+}
 </script>
     <button onclick="testFirebase()">
 Kiểm tra Firebase
