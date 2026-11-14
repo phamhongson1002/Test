@@ -3587,5 +3587,66 @@ Giải thích: Viêm xoang sàng trước cấp do vi khuẩn thường gặp sa
 
         window.onload = initApp;
     </script>
+<script type="module">
+
+import { initializeApp } from
+"https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+
+import {
+ getFirestore,
+ collection,
+ addDoc,
+ getDocs
+}
+from
+"https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+const firebaseConfig = {
+
+ apiKey: "AIzaSyCZl2HHbeeJ96bC9NL3gyPlQLSoxnLgQIE",
+
+ authDomain:
+ "medical-clinic-d3aea.firebaseapp.com",
+
+ projectId:
+ "medical-clinic-d3aea",
+
+ storageBucket:
+ "medical-clinic-d3aea.firebasestorage.app",
+
+ messagingSenderId:
+ "372087586411",
+
+ appId:
+ "1:372087586411:web:6605bda93274d95e10fb2e"
+
+};
+
+const app =
+initializeApp(firebaseConfig);
+
+const db =
+getFirestore(app);
+
+window.testFirebase =
+async function() {
+
+ await addDoc(
+   collection(db, "examsets"),
+   {
+      title:"Test từ Website",
+      createdAt:
+      new Date().toISOString()
+   }
+ );
+
+ alert("Firebase OK!");
+
+}
+
+</script>
+    <button onclick="testFirebase()">
+Kiểm tra Firebase
+</button>
 </body>
 </html>
